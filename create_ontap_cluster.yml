@@ -1,0 +1,74 @@
+- name: Playbook to create an NetApp ONTAP Cluster
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ontap_vars.yml
+
+  vars:
+    login: &login
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+   
+  tasks:
+
+    - name: "Create cluster {{ cluster }}"
+      netapp.ontap.na_ontap_cluster:
+        state: present
+        cluster_name: "{{ cluster }}"
+        hostname: "{{ dhcp_mgmt }}"
+        <<: *login
+      tags: cluster
+
+    - name: "Join Node to {{ cluster }}"
+      na_ontap_cluster:
+        state: present
+        cluster_ip_address: "{{ item }}"
+        hostname: "{{ dhcp_mgmt }}"
+        <<: *login
+      loop: "{{ node_joins }}"
+      tags: cluster
+
+    - name: Get Node Count
+      na_ontap_info:
+        state: info
+        gather_subset: cluster_node_info,disk_info
+        hostname: "{{ dhcp_mgmt }}"
+        <<: *login
+      register: netapp
+      tags: info, create, cluster
+
+    - name: Dump cluster info
+      debug:
+        var: netapp.ontap_info.cluster_node_info
+    
+    - name: reboot nodes
+      na_ontap_command:
+        command: "reboot -node {{ item }} -ignore-quorum-warnings"
+        hostname: "{{ dhcp_mgmt }}"
+        <<: *login
+      with_items: "{{ netapp.ontap_info.cluster_node_info|dictsort|reverse }}"
+      tags: cluster, reboot
+
+    - name: wait for reboot to finish
+      wait_for:
+        host: "{{ dhcp_mgmt }}"
+        port: 443
+        delay: 5000
+      tags: reboot, cluster
+
+    - name: Create cluster mgmt lif
+      na_ontap_interface:
+        state: present
+        interface_name: "{{ cluster }}_mgmt"
+        vserver: "{{ cluster }}"
+        address: "{{ mgmt_lif.ip }}"
+        netmask: "{{ mgmt_lif.subnet }}"
+        role: cluster-mgmt
+        home_node: "{{ mgmt_lif.home_node }}"
+        home_port: "{{ mgmt_lif.home_port }}"
+        hostname: "{{ dhcp_mgmt }}"
+        <<: *login
+      tags: lif, cluster
+   

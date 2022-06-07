@@ -1,0 +1,34 @@
+--- 
+- name: Playbook to create an NetApp ONTAP Cluster
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ontap_vars.yml
+  vars: 
+    login: &login
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+
+  tasks: 
+
+    - name: Get Node Count
+      na_ontap_info:
+        state: info
+        gather_subset: cluster_node_info,disk_info
+        hostname: "{{ mgmt_lif.ip }}"
+        <<: *login
+      register: netapp
+      tags: info, create, cluster
+    
+    - name: Assign Disks to each node to own
+      na_ontap_disks:
+        disk_count: "{{ disks }}"
+        node: "{{ item }}"
+        hostname: "{{ mgmt_lif.ip }}"
+        <<: *login
+      with_items: "{{ netapp.ontap_info.cluster_node_info }}"
+      loop_control:
+        pause: 5
+      tags: disks, cluster

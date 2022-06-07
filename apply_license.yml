@@ -1,0 +1,24 @@
+--- 
+- name: Playbook to create an NetApp ONTAP Cluster
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ontap_vars.yml
+  vars: 
+    login: &login
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+
+  tasks: 
+
+    - name: Add system licenses
+      na_ontap_license:
+        state: present
+        license_codes: "{{ license_codes }}"
+        hostname: "{{ mgmt_lif.ip }}"
+        <<: *login
+      tags: license, cluster
+
+    

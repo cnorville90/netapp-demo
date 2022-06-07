@@ -1,0 +1,25 @@
+ - name: Playbook to create an NetApp ONTAP Cluster
+   hosts: localhost
+   gather_facts: false
+   vars_files:
+     - ontap_vars.yml
+   vars: 
+     login: &login
+       username: "{{ netapp_username }}"
+       password: "{{ netapp_password }}"
+       https: true
+       validate_certs: false
+
+   tasks: 
+
+     - name: Fillout Admin User
+       na_ontap_user:
+         state: present
+         name: admin
+         applications: ssh,console,http,ontapi,service-processor
+         authentication_method: password
+         role_name: admin
+         vserver: "{{ cluster }}"
+         hostname: "{{ mgmt_lif.ip }}"
+         <<: *login
+       tags: admin, cluster
